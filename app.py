@@ -3,62 +3,65 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Page config
+# Set up Streamlit page config
 st.set_page_config(page_title="Telecom Churn Dashboard", layout="wide")
-
-# Title
-st.title("📊 Telecom Customer Churn Dashboard")
 
 # Load data
 @st.cache_data
 def load_data():
     df = pd.read_excel("telecom_churn_mock_data.xlsx")
-    df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors='coerce')
-    df.dropna(inplace=True)
+    df.columns = df.columns.str.strip().str.replace(" ", "").str.title()  # Normalize columns
     return df
 
 df = load_data()
 
-# Sidebar filters
-st.sidebar.header("Filters")
-contract_type = st.sidebar.multiselect("Contract Type", options=df['Contract'].unique(), default=df['Contract'].unique())
-internet_service = st.sidebar.multiselect("Internet Service", options=df['InternetService'].unique(), default=df['InternetService'].unique())
+# Title
+st.title("📊 Telecom Churn Dashboard")
 
-# Filtered data
-filtered_df = df[df['Contract'].isin(contract_type) & df['InternetService'].isin(internet_service)]
+# Show data preview
+with st.expander("Preview Dataset"):
+    st.dataframe(df)
+
+# Filters
+st.sidebar.header("Filter Data")
+selected_gender = st.sidebar.multiselect("Select Gender", options=df["Gender"].unique(), default=df["Gender"].unique())
+selected_contract = st.sidebar.multiselect("Select Contract Type", options=df["Contract"].unique(), default=df["Contract"].unique())
+selected_churn = st.sidebar.multiselect("Churned?", options=df["Churn"].unique(), default=df["Churn"].unique())
+
+# Apply filters
+filtered_df = df[
+    (df["Gender"].isin(selected_gender)) &
+    (df["Contract"].isin(selected_contract)) &
+    (df["Churn"].isin(selected_churn))
+]
+
+# Column layout
+col1, col2 = st.columns(2)
+
+# Bar chart - Contract distribution
+with col1:
+    st.subheader("📦 Contract Type Distribution")
+    contract_counts = filtered_df["Contract"].value_counts()
+    st.bar_chart(contract_counts)
+
+# Pie chart - Churn Distribution
+with col2:
+    st.subheader("⚠️ Churn Rate")
+    churn_counts = filtered_df["Churn"].value_counts()
+    fig1, ax1 = plt.subplots()
+    ax1.pie(churn_counts, labels=churn_counts.index, autopct='%1.1f%%', startangle=90)
+    ax1.axis("equal")
+    st.pyplot(fig1)
+
+# Scatter plot
+st.subheader("📈 Monthly Charges vs Tenure")
+fig2, ax2 = plt.subplots()
+sns.scatterplot(data=filtered_df, x="Tenure", y="Monthlycharges", hue="Churn", ax=ax2)
+st.pyplot(fig2)
 
 # Metrics
-st.markdown("### 📌 Key Metrics")
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Customers", len(filtered_df))
-col2.metric("Churned Customers", filtered_df['Churn'].value_counts().get('Yes', 0))
-churn_rate = round(filtered_df['Churn'].value_counts(normalize=True).get('Yes', 0)*100, 2)
-col3.metric("Churn Rate (%)", f"{churn_rate}%")
-
-# Charts Section
-st.markdown("### 📈 Visual Insights")
-
-tab1, tab2, tab3 = st.tabs(["Churn by Contract", "Tenure vs Charges", "Heatmap"])
-
-with tab1:
-    fig, ax = plt.subplots()
-    sns.countplot(data=filtered_df, x='Contract', hue='Churn', ax=ax)
-    ax.set_title("Churn by Contract Type")
-    st.pyplot(fig)
-
-with tab2:
-    fig, ax = plt.subplots()
-    sns.scatterplot(data=filtered_df, x='tenure', y='MonthlyCharges', hue='Churn', ax=ax)
-    ax.set_title("Monthly Charges vs Tenure")
-    st.pyplot(fig)
-
-with tab3:
-    fig, ax = plt.subplots()
-    corr = filtered_df[['tenure', 'MonthlyCharges', 'TotalCharges']].corr()
-    sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
-    ax.set_title("Correlation Heatmap")
-    st.pyplot(fig)
-
-# Footer
-st.markdown("---")
-st.markdown("Developed by **Irfan Ullah Khan** | [GitHub](https://github.com/)")
+st.subheader("📌 Key Metrics")
+col3, col4, col5 = st.columns(3)
+col3.metric("Total Customers", len(filtered_df))
+col4.metric("Churned", filtered_df["Churn"].value_counts().get("Yes", 0))
+col5.metric("Average Charges", f"${filtered_df['Monthlycharges'].mean():.2f}")
